@@ -1,11 +1,12 @@
 ---
 name: surgedev
-version: 0.0.1
-description: SurgeDev BaaS — manage database, storage, auth, and AI from the terminal via one CLI. OpenAPI backend. Works with Cursor, Claude Code, Windsurf, and any agent that can run shell commands.
+version: 0.0.2
+description: SurgeDev BaaS — manage database, storage, auth, AI, and app deploy from one CLI. OpenAPI backend. Works with Cursor, Claude Code, Windsurf, and any agent that can run shell commands.
 homepage: https://github.com/surgedevai/surgedev-skill
 cli_package: surgedev-cli
+agent_package: '@surgedev/agent'
 api_base_hint: Set SURGEDEV_API_URL to your backend (e.g. http://localhost:7130 or https://back.surgedev.ai)
-last_updated: 2026-03-26
+last_updated: 2026-04-09
 ---
 
 # SurgeDev for AI Coding Agents
@@ -60,7 +61,7 @@ surgedev ping
 
 | Pattern | What | For |
 |--------|------|-----|
-| **CLI** | `surgedev <command>` | Database, storage, auth, health checks — agent runs in terminal |
+| **CLI** | `surgedev <command>` | Database, storage, auth, deploy, health checks — agent runs in terminal |
 | **REST API** | `GET/POST /api/...` | Same backend; use when building app code, not for agent ops |
 
 **Flow:**
@@ -99,6 +100,7 @@ When the user asks you to do something, map to CLI commands:
 | Buckets and files | `surgedev storage ...` |
 | List users, view auth config | `surgedev auth ...` |
 | Check backend reachability | `surgedev ping` |
+| **Deploy** app to a registered VPS (build + compose) | `surgedev deploy ...` (see **Deploy** below) |
 | AI models / chat in **application code** | HTTP `/api/ai/...` or dashboard; see [AI integration](docs/agent-docs/skills/ai-integration.md) (main monorepo) |
 
 ### Step 2 — Prefer safe, read-only first
@@ -160,6 +162,32 @@ surgedev auth config
 surgedev ping
 ```
 
+### Deploy
+
+Requires the **SurgeDev control plane** plus at least one **deployment host** (VPS) where the **SurgeDev Agent** runs. Admins register hosts and install `@surgedev/agent` on the server; developers use the CLI with a normal **project API key**.
+
+```bash
+# From your app repo: pack source, upload, build on platform, run on assigned host
+surgedev deploy create [--dir .] [--domain api.example.com] [--follow]
+
+# Or pin an existing image (skip upload)
+surgedev deploy create --artifact registry.example.com/myapp:tag
+
+surgedev deploy list
+surgedev deploy status <deploymentId>
+surgedev deploy logs <deploymentId>
+surgedev deploy rollback
+surgedev deploy cancel <deploymentId>
+```
+
+**Build conventions (Node / auto-detected projects without a root `Dockerfile`):**
+
+- The platform uses **`npm ci`** → commit **`package-lock.json`**, or add a root **`Dockerfile`** and the agent will use it instead of generating one.
+- **Next.js**: include **`build`** and **`start`** scripts (container listens on **3000** by default).
+- If you must upload without a lockfile: `surgedev deploy create --skip-checks` (build may still fail server-side).
+
+**VPS side (operators):** install Docker + Node 18+, then run **`@surgedev/agent`** with `SURGEDEV_API_URL`, `SURGEDEV_HOST_ID`, and `SURGEDEV_AGENT_TOKEN` from host registration. The agent polls the API and runs `docker build` / `docker compose` locally — the control plane does not SSH into your box.
+
 ---
 
 ## Environment variables
@@ -184,8 +212,10 @@ Full skill guides live in the open-source monorepo:
 | Schema patterns | [schema-patterns.md](docs/agent-docs/skills/schema-patterns.md) |
 | Storage | [storage-guide.md](docs/agent-docs/skills/storage-guide.md) |
 | AI integration | [ai-integration.md](docs/agent-docs/skills/ai-integration.md) |
+| Deploy — VPS Agent install (ZH) | [surgedev-vps-agent-install.zh.md](docs/deployment/surgedev-vps-agent-install.zh.md) |
+| Deploy — cloud guides | [docs/deployment/](docs/deployment/) |
 
-CLI package source: [surgedev-cli](surgedev-cli/README.md)
+CLI package source: [surgedev-cli](surgedev-cli/README.md) · Agent: [`@surgedev/agent`](https://www.npmjs.com/package/@surgedev/agent) (install on target VPS)
 
 ---
 
@@ -197,6 +227,9 @@ CLI package source: [surgedev-cli](surgedev-cli/README.md)
 | Connection refused | Wrong host/port or backend not running | Check `SURGEDEV_API_URL`, start backend |
 | 401 / 403 | Invalid or expired key | Regenerate key in dashboard |
 | Wrong URL in OAuth or redirects | `API_BASE_URL` doubled with `/api` | Use origin only for CLI; avoid `.../api` as base for env that expects origin |
+| Deploy build fails (`npm ci`) | Missing `package-lock.json` | Add lockfile or supply a root `Dockerfile` |
+| Deploy running but wrong port / 502 | App not listening on expected port | Match `EXPOSE` / compose mapping (e.g. Node defaults to 3000); check `surgedev deploy logs` |
+| No host picked / 503 | No active agent or pool mismatch | Register host, keep agent running, check tier/pool |
 
 ---
 
