@@ -1,12 +1,12 @@
 ---
 name: surgedev
-version: 0.0.2
+version: 0.0.3
 description: SurgeDev BaaS — manage database, storage, auth, AI, and app deploy from one CLI. OpenAPI backend. Works with Cursor, Claude Code, Windsurf, and any agent that can run shell commands.
 homepage: https://github.com/surgedevai/surgedev-skill
 cli_package: surgedev-cli
 agent_package: '@surgedev/agent'
 api_base_hint: Set SURGEDEV_API_URL to your backend (e.g. http://localhost:7130 or https://back.surgedev.ai)
-last_updated: 2026-04-11
+last_updated: 2026-04-09
 ---
 
 # SurgeDev for AI Coding Agents
@@ -100,7 +100,7 @@ When the user asks you to do something, map to CLI commands:
 | Buckets and files | `surgedev storage ...` |
 | List users, view auth config | `surgedev auth ...` |
 | Check backend reachability | `surgedev ping` |
-| **Deploy** app to a registered VPS (build + compose) | `surgedev deploy ...` (see **Deploy** below) |
+| **Deploy** app to a registered VPS (build + compose) | `surgedev deploy ...` (see **Deploy** below); CLI prints **访问信息** (domain / how to open) on success — tell the user to read the terminal or run `deploy status` / `deploy logs` |
 | AI models / chat in **application code** | HTTP `/api/ai/...` or dashboard; see [AI integration](docs/agent-docs/skills/ai-integration.md) (main monorepo) |
 
 ### Step 2 — Prefer safe, read-only first
@@ -179,6 +179,16 @@ surgedev deploy logs <deploymentId>
 surgedev deploy rollback
 surgedev deploy cancel <deploymentId>
 ```
+
+**CLI output — domain and access (what to tell the user):**
+
+- After a **successful** deploy with **`--follow`**, the CLI prints a final section **`🌐 访问信息`** with:
+  - **If a domain was set** (`--domain`): the hostname, suggested URLs (`https://…/` first, `http://…/` if TLS not ready), and short notes on DNS and certificates.
+  - **If no domain**: explains **random host port** mapping; user checks **`docker ps`** on the VPS or deploy logs for the published port, or re-deploys with `--domain`.
+- With **`--no-follow`**, if the create response already has a **domain**, the CLI prints the same **访问信息** block (build may still be running — copy tells the user to wait or watch logs).
+- **`surgedev deploy logs <id> --no-follow`** on a deployment already in **`success`** prints the **访问信息** block again after the log dump — useful if the user closed the terminal after deploy.
+
+**For AI agents:** When you help someone deploy, remind them that **the canonical place for “how do I open my app?” is the CLI output** (`访问信息`). If they no longer have the scrollback, they can run `surgedev deploy status <id>` (shows domain column) or `surgedev deploy logs <id> --no-follow` to see the access summary again.
 
 **Build conventions (Node / auto-detected projects without a root `Dockerfile`):**
 
