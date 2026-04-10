@@ -6,7 +6,7 @@ homepage: https://github.com/surgedevai/surgedev-skill
 cli_package: surgedev-cli
 agent_package: '@surgedev/agent'
 api_base_hint: Set SURGEDEV_API_URL to your backend (e.g. http://localhost:7130 or https://back.surgedev.ai)
-last_updated: 2026-04-09
+last_updated: 2026-04-11
 ---
 
 # SurgeDev for AI Coding Agents
@@ -188,6 +188,21 @@ surgedev deploy cancel <deploymentId>
 
 **VPS side (operators):** install Docker + Node 18+, then run **`@surgedev/agent`** with `SURGEDEV_API_URL`, `SURGEDEV_HOST_ID`, and `SURGEDEV_AGENT_TOKEN` from host registration. The agent polls the API and runs `docker build` / `docker compose` locally — the control plane does not SSH into your box.
 
+**Runtime env for the container (from your laptop):**
+
+- Put `KEY=value` lines in **`.env.surgedev`** in the project directory — the CLI loads it automatically (and excludes it from the uploaded tarball). Or use **`--env-file path`**. Values merge with **`--config '{"KEY":"value"}'`**; `--config` wins on key conflicts.
+- Without **`--domain`**, Docker maps a **random host port** per deploy (avoids collisions across projects). With **`--domain`**, SurgeDev records the hostname for the deployment; **you** finish routing in DNS.
+
+**Custom domain — what you configure (at your DNS registrar / DNS host):**
+
+1. **Know the target** — the deployment runs on **one** VPS in the pool. You need its **公网 IPv4**（向平台管理员索要，或在主机登记信息里查看）. The hostname you pass to `--domain` must eventually resolve to that IP (directly or via your CDN).
+2. **Create records** (names differ by provider, e.g. 阿里云 DNS、腾讯云 DNS、Route53、Cloudflare 等):
+   - **Root / apex** (`example.com`): usually an **A** record → that IPv4 (or ALIAS/ANAME if your DNS supports it).
+   - **Subdomain** (`api.example.com`): **A** → same IP, or **CNAME** → another hostname you control that already points to that machine.
+3. **Wait for propagation** — a few minutes to hours; use `ping` / `dig` / online DNS checker to verify before debugging the app.
+4. **HTTPS** — the platform does not issue certificates for you. Typically: put **Nginx / Caddy / Traefik** (or a cloud LB) on that host or in front of it, listen on **80/443**, reverse-proxy to the **container port** Docker published (see deploy logs / `docker ps` on the VPS). Match TLS mode if you use a CDN (e.g. “full” vs “strict”).
+5. **Firewall** — open **80** and **443** on the VPS (and security group) if you serve HTTP(S) on standard ports.
+
 ---
 
 ## Environment variables
@@ -230,6 +245,7 @@ CLI package source: [surgedev-cli](surgedev-cli/README.md) · Agent: [`@surgedev
 | Deploy build fails (`npm ci`) | Missing `package-lock.json` | Add lockfile or supply a root `Dockerfile` |
 | Deploy running but wrong port / 502 | App not listening on expected port | Match `EXPOSE` / compose mapping (e.g. Node defaults to 3000); check `surgedev deploy logs` |
 | No host picked / 503 | No active agent or pool mismatch | Register host, keep agent running, check tier/pool |
+| Custom domain does not open | DNS not pointing to the deploy host IP, or TLS/port not set | Fix A/CNAME; wait for propagation; configure 80/443 and reverse-proxy to container port |
 
 ---
 
